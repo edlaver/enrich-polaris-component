@@ -1,8 +1,9 @@
 {
   "name": "enrich-polaris-component",
+  "description": "HOC (Higher-order component) wrapper that adds a ref and style and className manipulation capabilities to any Polaris component.",
   "author": "Ed Laver (https://github.com/edlaver)",
   "private": false,
-  "version": "0.0.1",
+  "version": "0.0.2",
   "type": "module",
   "main": "dist/main.js",
   "types": "dist/main.d.ts",
