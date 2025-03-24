@@ -36,6 +36,14 @@ See the issue of why this is required at: https://github.m/Shopify/polaris/issue
 
 Adding the ref functionality based on the brilliant comment at: https://thub.com/Shopify/polaris/issues/1083#issuecomment-1878858991
 
+## How?
+
+First, it uses the `forwardRef` function to create a new component that can accept a `ref` prop.
+
+Then, it uses the `useId` hook to generate a unique id for the component. This is important so that we can access the DOM element directly via the id.
+
+Once we have the DOM element, we use useEffect hooks to observe changes in the style and className props and set them on the element directly, e.g. with `element.style` and `element.className`.
+
 ## Example usage:
 
 Wrap the component you want to enhance with this function to allow it to take a `ref` and `style` and `className` prop:
