@@ -31,15 +31,14 @@ import css from "dom-css"; // Required for style setting on the DOM element
  * ```tsx
  * <SortableIndexTableRow
  *   // Original props that are passed to the original component:
+ *   id={id} // id is optional, as it will be set automatically by the `enrichPolarisComponent` wrapper
+ *   // to ensure the id is unique if missing...
  *   key={id}
  *   position={index}
  *   // New props that couldn't be set on the original component:
  *   ref={setNodeRef}
  *   style={{ backgroundColor: "red" }}
  *   className="custom-class another-class"
- *   // Note: No point passing an id prop here, as it will be set automatically by the `enrichPolarisComponent` wrapper
- *   // to ensure the id is unique:
- *   // id={id}
  * >
  * ```
  *
@@ -51,14 +50,20 @@ export function enrichPolarisComponent<
   T extends HTMLElement = HTMLElement
 >(WrappedComponent: React.ComponentType<P>) {
   type EnhancedProps = P & {
-    id?: string; // Optional id prop to allow for custom IDs
+    id?: string;
     style?: React.CSSProperties;
-    className?: string; // Added className prop to allow for custom CSS classes
+    className?: string;
     forwardedRef?: React.ForwardedRef<T>;
   };
 
   const EnrichPolarisComponent = (props: EnhancedProps) => {
-    const { style, className, forwardedRef, ...restProps } = props;
+    const {
+      id: optionalId,
+      style,
+      className,
+      forwardedRef,
+      ...restProps
+    } = props;
 
     // Use a mutable ref object to track the DOM element
     const domElementRef = useRef<HTMLElement | null>(null);
@@ -69,8 +74,9 @@ export function enrichPolarisComponent<
     // Add a ref to store the initial class names
     const initialClassNamesRef = useRef<string>("");
 
-    // Generate a unique ID for DOM access
-    const id = useId();
+    // Use the passed in id, or generate a unique ID for DOM access if missing
+    const generatedId = useId();
+    const id = optionalId || generatedId;
 
     // Set the current value of the ref to the element with the given id
     // if it exists in the DOM and hasn't already been set
@@ -205,7 +211,7 @@ export function enrichPolarisComponent<
   // Create a wrapper that handles ref forwarding
   const ForwardRefComponent = React.forwardRef<
     T,
-    Omit<EnhancedProps, "forwardedRef" | "id">
+    Omit<EnhancedProps, "forwardedRef">
   >((props, ref) => {
     return (
       <EnrichPolarisComponent

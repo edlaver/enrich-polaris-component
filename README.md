@@ -40,7 +40,7 @@ Adding the ref functionality based on the brilliant comment at: https://thub.com
 
 First, it uses the `forwardRef` function to create a new component that can accept a `ref` prop.
 
-Then, it uses the `useId` hook to generate a unique id for the component. This is important so that we can access the DOM element directly via the id.
+Then, it uses the `useId` hook to generate a unique id for the component if one is not passed as a prop. This is important so that we can access the DOM element directly via the id.
 
 Once we have the DOM element, we use useEffect hooks to observe changes in the style and className props and set them on the element directly, e.g. with `element.style` and `element.className`.
 
@@ -82,6 +82,7 @@ then use the **wrapped component** _instead_ of the original Polaris component, 
 ```tsx
 <SortableIndexTableRow
   // Original props that are passed to the original component:
+  id={`table-row-${id}`} // Optional, will be generated automatically if not passed
   key={id}
   position={index}
 
@@ -89,10 +90,6 @@ then use the **wrapped component** _instead_ of the original Polaris component, 
   ref={setNodeRef}
   style={{ backgroundColor: "red" }}
   className="custom-class another-class"
-
-  // Note: No point passing an id prop here, as it will be set automatically by the `enrichPolarisComponent` wrapper
-  // to ensure the id is unique:
-  // id={id}
 >
 ```
 
