@@ -78,10 +78,18 @@ export function enrichPolarisComponent<
     const generatedId = useId();
     const id = optionalId || generatedId;
 
+    // Expose the ref to the parent component
+    useImperativeHandle(forwardedRef, () => document.getElementById(id) as T);
+
     // Set the current value of the ref to the element with the given id
     // if it exists in the DOM and hasn't already been set
     if (!domElementRef.current && document.getElementById(id)) {
       domElementRef.current = document.getElementById(id);
+
+      // console.log(
+      //   "🔎 > EnrichPolarisComponent > DOM element found:",
+      //   domElementRef.current
+      // );
 
       // Store initial style properties when element is first referenced
       if (domElementRef.current?.style) {
@@ -105,105 +113,65 @@ export function enrichPolarisComponent<
         //   initialClassNamesRef.current
         // );
       }
+
+      // console.log(
+      //   "Applying initial styles and class names to the element...",
+      //   domElementRef.current,
+      //   style,
+      //   className
+      // );
+      // Apply the initial styles and class names to the DOM element
+      applyStylesToElement(domElementRef.current, style, initialStyleRef);
+      applyClassNamesToElement(
+        domElementRef.current,
+        className,
+        initialClassNamesRef
+      );
     }
 
-    // Expose the ref to the parent component
-    useImperativeHandle(forwardedRef, () => document.getElementById(id) as T);
-
-    // Apply styles to the DOM element when the style prop changes
+    // useEffect with no dependencies - runs on every render:
+    // This is to ensure that the styles and class names are applied on every render
+    // as otherwise HMR will not work correctly
     useEffect(() => {
-      if (!domElementRef.current?.style) {
-        // console.warn(
-        //   "DOM element not found or style property is not available.",
-        //   id
-        // );
-        return;
-      }
+      // Re-capture the DOM element each render
+      domElementRef.current = document.getElementById(id);
 
-      // Split the passed in style prop into set and unset styles:
-      const setStyles = {} as Record<string, string | number | undefined>;
-      const unsetStyles = {} as Record<string, string | number | undefined>;
-      for (const key in style) {
-        const keyOf = key as keyof React.CSSProperties; // Type assertion to avoid TS error
-        if (style[keyOf]) {
-          setStyles[key] = style[keyOf];
-        } else {
-          unsetStyles[key] = style[keyOf];
+      // Re-initialize initial style references if needed (e.g. for HMR)
+      if (
+        domElementRef.current?.style &&
+        Object.keys(initialStyleRef.current).length === 0
+      ) {
+        const styleObj: Record<string, string> = {};
+        for (let i = 0; i < domElementRef.current.style.length; i++) {
+          const prop = domElementRef.current.style[i];
+          styleObj[prop] = domElementRef.current.style.getPropertyValue(prop);
         }
-      }
-      // console.log("unsetStyles:", unsetStyles);
-      // console.log("setStyles:", setStyles);
-
-      // Merge the initial styles with the new set styles, and sanitize the values with `toStyle`:
-      // The new set styles will override the initial styles in case of a conflict:
-      const mergedStyles = toStyle({
-        ...initialStyleRef.current,
-        ...setStyles,
-      });
-      // console.log("🔎 > useEffect > mergedStyles:", mergedStyles);
-
-      //// Update the styles on the DOM element: ////
-
-      // 1. Clear the styles of any `undefined` or `null` values:
-      // console.log("Removing unset style properties:", unsetStyles);
-      for (const property in unsetStyles) {
-        // console.log("Removing unset style property:", property);
-        // @ts-expect-error "TS thinks this can only be indexed via a number"
-        domElementRef.current.style[property] = null; // Note: We use this syntax instead of `removeProperty` to avoid issues with the property names being in camelCase.
-        // as: domElementRef.current.style.removeProperty(property) <- only works for kebab-case properties...
+        initialStyleRef.current = styleObj;
       }
 
-      // 2. Clear the styles of any styles currently on the element that are not in the new mergedStyles:
-      for (let i = 0; i < domElementRef.current.style.length; i++) {
-        const property = domElementRef.current.style[i];
-        if (!(property in mergedStyles)) {
-          // console.log("Removing previously set style property:", property);
-          domElementRef.current.style.removeProperty(property); // This works as the property names are in kebab-case (as they're coming from the `current.style` object).
-        }
+      // Re-initialize initial class names if needed (e.g. for HMR)
+      if (domElementRef.current?.className && !initialClassNamesRef.current) {
+        initialClassNamesRef.current = domElementRef.current.className;
       }
 
-      // 3. Finally, apply the merged styles to the element using the `dom-css` package,
-      // which works with camelCase and kebab-case properties, and handles adding `px` to numbers, etc.
-      // console.log("Applying styles using dom-css:", mergedStyles);
-      css(domElementRef.current, mergedStyles);
-    }, [style]);
+      applyStylesToElement(domElementRef.current, style, initialStyleRef);
+      applyClassNamesToElement(
+        domElementRef.current,
+        className,
+        initialClassNamesRef
+      );
+    });
 
-    // Apply class names to the DOM element when the className prop changes
-    useEffect(() => {
-      if (!domElementRef.current) {
-        return;
-      }
+    // // Apply styles to the DOM element when the style prop changes
+    // useEffect(() => {
+    //   applyStylesToElement(domElementRef.current, style);
+    // }, [style]);
 
-      // If we have a className prop, append it to the initial class names
-      if (className) {
-        // console.log("Applying class names:", className);
-
-        // Ensure we're not duplicating classes by starting with initial classes
-        const baseClasses = initialClassNamesRef.current
-          .split(" ")
-          .filter(Boolean);
-        // console.log("Base classes:", baseClasses);
-
-        const newClasses = className.split(" ").filter(Boolean);
-        // console.log("New classes:", newClasses);
-
-        // Combine initial and new classes, removing duplicates
-        const combinedClasses = Array.from(
-          new Set([...baseClasses, ...newClasses])
-        );
-        // console.log("Combined classes:", combinedClasses.join(" "));
-
-        // Set the className on the DOM element
-        domElementRef.current.className = combinedClasses.join(" ");
-      } else {
-        // If no className is provided, restore the initial class names
-        // console.log(
-        //   "No className provided, restoring initial class names:",
-        //   initialClassNamesRef.current
-        // );
-        domElementRef.current.className = initialClassNamesRef.current;
-      }
-    }, [className]);
+    // // Apply class names to the DOM element when the className prop changes
+    // useEffect(() => {
+    //   // If we have a className prop, append it to the initial class names
+    //   applyClassNamesToElement(domElementRef.current, className);
+    // }, [className]);
 
     return <WrappedComponent {...(restProps as P)} id={id} />;
   };
@@ -227,4 +195,117 @@ export function enrichPolarisComponent<
   ForwardRefComponent.displayName = `enrichPolarisComponent(${displayName})`;
 
   return ForwardRefComponent;
+}
+
+function applyStylesToElement(
+  element: HTMLElement | null,
+  styleProps: React.CSSProperties | undefined,
+  initialStyleRef: React.MutableRefObject<Record<string, string>>
+) {
+  if (!element) {
+    // console.warn("DOM element not found or style property is not available.");
+    return;
+  }
+
+  if (!initialStyleRef?.current) {
+    // console.warn("initialStyleRef.current not found.");
+    return;
+  }
+
+  // console.log("Applying styles to element:", element, styleProps);
+
+  let mergedStyles = {} as Record<string, string | number | undefined>;
+
+  if (styleProps) {
+    // Split the passed in style prop into set and unset styles:
+    const setStyles = {} as Record<string, string | number | undefined>;
+    const unsetStyles = {} as Record<string, string | number | undefined>;
+    for (const key in styleProps) {
+      const keyOf = key as keyof React.CSSProperties; // Type assertion to avoid TS error
+      if (styleProps[keyOf]) {
+        setStyles[key] = styleProps[keyOf];
+      } else {
+        unsetStyles[key] = styleProps[keyOf];
+      }
+    }
+    // console.log("unsetStyles:", unsetStyles);
+    // console.log("setStyles:", setStyles);
+
+    // Merge the initial styles with the new set styles, and sanitize the values with `toStyle`:
+    // The new set styles will override the initial styles in case of a conflict:
+    mergedStyles = toStyle({
+      ...initialStyleRef.current,
+      ...setStyles,
+    });
+
+    // Clear the styles of any `undefined` or `null` values:
+    // console.log("Removing unset style properties:", unsetStyles);
+    for (const property in unsetStyles) {
+      // console.log("Removing unset style property:", property);
+      // @ts-expect-error "TS thinks this can only be indexed via a number"
+      element.style[property] = null; // Note: We use this syntax instead of `removeProperty` to avoid issues with the property names being in camelCase.
+      // as: element.style.removeProperty(property) <- only works for kebab-case properties...
+    }
+  } else {
+    // If no style prop is provided, use the initial styles:
+    mergedStyles = toStyle(initialStyleRef.current);
+  }
+  // console.log("🔎 > useEffect > mergedStyles:", mergedStyles);
+
+  //// Update the styles on the DOM element: ////
+
+  // Clear the styles of any styles currently on the element that are not in the new mergedStyles:
+  for (let i = 0; i < element.style.length; i++) {
+    const property = element.style[i];
+    if (!(property in mergedStyles)) {
+      // console.log("Removing previously set style property:", property);
+      element.style.removeProperty(property); // This works as the property names are in kebab-case (as they're coming from the `current.style` object).
+    }
+  }
+
+  // Finally, apply the merged styles to the element using the `dom-css` package,
+  // which works with camelCase and kebab-case properties, and handles adding `px` to numbers, etc.
+  // console.log("Applying styles using dom-css:", mergedStyles);
+  css(element, mergedStyles);
+}
+
+function applyClassNamesToElement(
+  element: HTMLElement | null,
+  className: string | undefined,
+  initialClassNamesRef: React.MutableRefObject<string>
+) {
+  if (!element) {
+    // console.warn("DOM element not found.");
+    return;
+  }
+
+  if (!initialClassNamesRef?.current) {
+    // console.warn("initialStyleRef.current not found.");
+    return;
+  }
+
+  // console.log("Applying class names to element:", element, className);
+
+  if (className) {
+    // console.log("Applying class names:", className);
+    // Ensure we're not duplicating classes by starting with initial classes
+    const baseClasses = initialClassNamesRef.current.split(" ").filter(Boolean);
+    // console.log("Base classes:", baseClasses);
+    const newClasses = className.split(" ").filter(Boolean);
+    // console.log("New classes:", newClasses);
+    // Combine initial and new classes, removing duplicates
+    const combinedClasses = Array.from(
+      new Set([...baseClasses, ...newClasses])
+    );
+    // console.log("Combined classes:", combinedClasses.join(" "));
+    // Set the className on the DOM element
+    element.className = combinedClasses.join(" ");
+  } else {
+    // If no className is provided, restore the initial class names
+    // console.log(
+    //   "No className provided, restoring initial class names:",
+    //   initialClassNamesRef.current
+    // );
+    element.className = initialClassNamesRef.current;
+  }
 }
